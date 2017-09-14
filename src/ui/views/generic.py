@@ -5,7 +5,7 @@ from regulations.utils import ALLOWED_CHILDREN, ALLOWED_ATTRIBUTES
 from functools import partial
 
 
-@register_view('tocSecEntry', 'part', 'subpart', 'section', 'changeset', 'change')
+@register_view('tocSecEntry', 'part', 'subpart', 'section', 'changeset', 'title', 'content')
 class GenericView(ViewBase, ViewWithUpdate):
 
     def __init__(self, *args, **kwargs):
@@ -22,6 +22,7 @@ class GenericView(ViewBase, ViewWithUpdate):
                 pass
             else:
                 raise TypeError('Invalid type of attributes!')
+
             for attr in attributes:
                 attr_var_name = str(attr) + '_var'
                 label = tk.Label(self, text=attr)
@@ -44,8 +45,8 @@ class GenericView(ViewBase, ViewWithUpdate):
                 pass
             else:
                 raise TypeError('Invalid type of children!')
-            for child in children:
 
+            for child in children:
                 child_var_name = child + '_var'
                 label = tk.Label(self, text=child)
                 self.__dict__[child_var_name] = tk.StringVar(self)
@@ -59,3 +60,5 @@ class GenericView(ViewBase, ViewWithUpdate):
                 self.__dict__[child_var_name].trace('w', partial(self.update_model,
                                                                  child,
                                                                  self.__dict__[child_var_name]))
+
+        self.size = row

@@ -134,11 +134,21 @@ class EditorApp(tk.Frame):
         # deserialized text. we don't want to modify the original tree (or we'd have to
         # modify it back, so we make a deep copy and write that to disk)
         def deserialize_content(root):
+            # also clean up empty titles hanging around in changes
+            contents = root.findall('.//change/content')
+            for content in contents:
+                if content.text is None or content.text.strip() == '':
+                    content.getparent().remove(content)
+            titles = root.findall('.//change/titles')
+            for title in titles:
+                if title.text is None or title.text.strip() == '':
+                    title.getparent().remove(title)
             contents = root.findall('.//paragraph/content')
             for content in contents:
                 content_text = '<content>' + content.text + '</content>'
                 new_content = etree.fromstring(content_text)
                 content.getparent().replace(content, new_content)
+
 
         if self.work_state_filename is None:
             notice_file = tkFileDialog.asksaveasfilename()
@@ -163,7 +173,7 @@ class EditorApp(tk.Frame):
         # needs to be serialized to a string since we don't want to manage the
         # content element's children individually.
         if element.tag == 'content' and element.getparent().tag in ['paragraph', 'interpParagraph']:
-            content_text = etree.tostring(element)
+            content_text = unicode(etree.tostring(element, encoding='UTF-8'))
             content_text = re.sub(content_open, '', content_text)
             content_text = re.sub(content_close, '', content_text)
             element.text = content_text
@@ -190,11 +200,18 @@ class EditorApp(tk.Frame):
             elem = self.tree_to_element_map.get(focus, None)
             if elem is not None:
                 view = element_to_view_map.get(elem.tag, None)
+                # you can only edit content and title directly if they live under a change
+                # if elem.tag == 'change' and elem.get('subpath', None) is not None:
+                #     children = ['title', 'content']
+                # else:
+                children = False
                 if view is not None:
                     if self.element_view is not None:
                         self.element_view.destroy()
                     if str(view) == str(GenericView):
-                        self.element_view = view(elem, master=self.right_frame, attributes=True, children=False)
+                        self.element_view = view(elem, master=self.right_frame, attributes=True, children=children)
+                    elif elem.tag == 'change':
+                        self.element_view = view(elem, master=self.right_frame, attributes=True, children=['title', 'content'])
                     else:
                         self.element_view = view(elem, master=self.right_frame)
                     self.element_view.pack(side=tk.LEFT, expand=tk.YES, fill=tk.BOTH)
@@ -221,9 +238,17 @@ class EditorApp(tk.Frame):
                 for child_tag in allowed_tags:
                     menu.add_command(label='Insert {}'.format(child_tag),
                                      command=partial(self.insert_child, child_tag, elem, focus))
-                    if child_tag in ['paragraph', 'interpParagrap']:
+                    if child_tag in ['paragraph', 'interpParagraph']:
                         menu.add_command(label='Insert titled {}'.format(child_tag),
                                          command=partial(self.insert_child, child_tag, elem, focus, True))
+
+                menu.add_command(label='Append {}'.format(elem.tag),
+                                 command=partial(self.insert_child, elem.tag, elem.getparent(),
+                                                 self.element_tree.parent(focus)))
+                if elem.tag in ['paragraph', 'interpParagraph']:
+                    menu.add_command(label='Append titled {}'.format(elem.tag),
+                                     command=partial(self.insert_child, elem.tag, elem.getparent(),
+                                                     self.element_tree.parent(focus), True))
 
                 menu.add_separator()
                 menu.add_command(label='Move up', command=partial(self.move_node, -1, focus))
@@ -234,7 +259,7 @@ class EditorApp(tk.Frame):
 
     def insert_child(self, tag, parent_elem, parent_id, with_title=False, *args):
 
-        print 'Inserting child {} into tree at id {} and as parent of {}'.format(tag, parent_id, parent_elem)
+        #print 'Inserting child {} into tree at id {} and as parent of {}'.format(tag, parent_id, parent_elem)
         new_id = self.element_tree.insert(parent_id, 'end', text=tag)
         new_elem = etree.Element(tag)
         parent_elem.append(new_elem)
@@ -256,32 +281,68 @@ class EditorApp(tk.Frame):
         elif tag in ['paragraph', 'interpParagraph']:
             prev = self.element_tree.prev(new_id)
             prev_elem = self.tree_to_element_map.get(prev, None)
+
             if prev_elem is not None:
                 prev_label = prev_elem.get('label', None)
                 if prev_label is not None:
                     split_label = prev_label.split('-')
                     depth = len(split_label) - 2
                     current_marker = split_label[-1]
-                    next_marker_type = marker_types[depth]
-                    next_marker = next_marker_type[next_marker_type.index(current_marker) + 1]
-                    new_label = '-'.join(split_label[:-1] + [next_marker])
-                    self.element_tree.item(new_id, text=new_label)
-                    new_elem.set('label', new_label)
-                    new_elem.set('marker', '({})'.format(next_marker))
+                    if tag == 'paragraph':
+                        next_marker_type = marker_types[depth]
+                        next_marker = next_marker_type[next_marker_type.index(current_marker) + 1]
+                        new_label = '-'.join(split_label[:-1] + [next_marker])
+                        self.element_tree.item(new_id, text=new_label)
+                        new_elem.set('label', new_label)
+                        new_elem.set('marker', '({})'.format(next_marker))
+                    elif tag == 'interpParagraph':
+                        if current_marker == 'Interp':
+                            next_marker = '1'
+                        else:
+                            depth = len(split_label) - split_label.index('Interp')
+                            next_marker_type = marker_types[depth]
+                            print '304: ', depth, next_marker_type
+                            next_marker = next_marker_type[next_marker_type.index(current_marker) + 1]
+                            new_label = '-'.join(split_label[:-1] + [next_marker])
+                            self.element_tree.item(new_id, text=new_label)
+                            new_elem.set('label', new_label)
+                        new_elem.set('marker', '{}.'.format(next_marker))
+
             elif parent_elem.tag == 'change':
                 new_label = parent_elem.get('label')
                 new_elem.set('label', new_label)
+                if tag == 'paragraph':
+                    new_marker = new_label.split('-')[-1]
+                    new_elem.set('marker', '({})'.format(new_marker))
+                elif tag == 'interpParagraph':
+                    new_marker = '1'
+                    new_elem.set('marker', '{}.'.format(new_marker))
+                self.element_tree.item(new_id, text=new_label)
             elif parent_elem.tag != 'change':
                 parent_label = parent_elem.get('label')
                 split_label = parent_label.split('-')
                 depth = len(split_label) - 1
                 current_marker = split_label[-1]
-                next_marker_type = marker_types[depth]
-                next_marker = next_marker_type[0]
-                new_label = '-'.join(split_label + [next_marker])
-                self.element_tree.item(new_id, text=new_label)
-                new_elem.set('label', new_label)
-                new_elem.set('marker', '({})'.format(next_marker))
+                if tag == 'paragraph':
+                    next_marker_type = marker_types[depth]
+                    next_marker = next_marker_type[0]
+                    new_label = '-'.join(split_label + [next_marker])
+                    self.element_tree.item(new_id, text=new_label)
+                    new_elem.set('label', new_label)
+                    new_elem.set('marker', '({})'.format(next_marker))
+                elif tag == 'interpParagraph':
+                    depth = len(split_label) - split_label.index('Interp') + 1
+                    next_marker_type = marker_types[depth]
+                    if current_marker == 'Interp' or prev_elem is None:
+                        next_marker = next_marker_type[0]
+                    else:
+                        current_marker = prev_elem.get('label').split('-')[-1]
+                        print '339:', depth, next_marker_type, current_marker
+                        next_marker = next_marker_type[next_marker_type.index(current_marker) + 1]
+                    new_label = '-'.join(split_label + [next_marker])
+                    self.element_tree.item(new_id, text=new_label)
+                    new_elem.set('label', new_label)
+                    new_elem.set('marker', '{}.'.format(next_marker))
 
             if with_title:
                 new_title = etree.SubElement(new_elem, 'title')

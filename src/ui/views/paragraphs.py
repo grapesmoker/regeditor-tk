@@ -22,7 +22,7 @@ class ParagraphView(ViewBase, ViewWithUpdate):
         self.label_var.trace('w', partial(self.update_model_attribute, 'label', self.label_var))
         row += 1
 
-        if self.model.get('target', None) is not None:
+        if self.model.tag == 'interpParagraph':
             label = tk.Label(self, text='Target')
             self.target_var = tk.StringVar(self)
             self.target = tk.Entry(self, textvariable=self.target_var, width=40)

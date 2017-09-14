@@ -15,13 +15,15 @@ ALLOWED_CHILDREN = {
     'content': ['subpart', 'section'],
     'subpart': ['content', 'interpretations'],
     'section': ['subject', 'paragraph'],
+    'appendixSection': ['subject', 'paragraph'],
     'paragraph': ['title', 'content', 'paragraph'],
     'interpretations': ['title', 'interpSection'],
     'interpSection': ['title', 'interpParagraph'],
     'interpParagraph': ['title', 'interpParagraph'],
     'notice': ['fdsys', 'preamble', 'changeset'],
     'changeset': ['change'],
-    'change': ['section', 'interpSection', 'paragraph', 'interpParagraph']
+    'change': ['section', 'interpSection', 'appendixSection',
+               'paragraph', 'interpParagraph', 'title', 'content']
 }
 
 ALLOWED_ATTRIBUTES = {
@@ -31,6 +33,7 @@ ALLOWED_ATTRIBUTES = {
     'tocInterpEntry': ['target'],
     'subpart': ['label'],
     'section': ['label', 'sectionNum'],
+    'appendixSection': ['label', 'appendixSecNum'],
     'paragraph': ['label', 'marker'],
     'interpretations': ['label'],
     'interpSection': ['label'],

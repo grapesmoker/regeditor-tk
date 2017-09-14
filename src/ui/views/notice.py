@@ -6,6 +6,7 @@ from functools import partial
 
 from . import ViewWithUpdate, ViewBase
 from decorators import register_view
+from generic import GenericView
 
 
 @register_view('fdsys')
@@ -129,3 +130,33 @@ class PreambleView(tk.Frame, ViewWithUpdate):
         self.doc_number_var.trace('w', partial(self.update_model, 'documentNumber', self.doc_number_var))
         self.effective_date_var.trace('w', partial(self.update_model, 'effectiveDate', self.effective_date_var))
         self.url_var.trace('w', partial(self.update_model, 'federalRegisterURL', self.url_var))
+
+
+@register_view('change')
+class ChangeView(GenericView):
+
+    def __init__(self, *args, **kwargs):
+        GenericView.__init__(self, *args, **kwargs)
+
+        if 'content_var' in self.__dict__:
+            del self.__dict__['content_var']
+        if 'content' in self.__dict__:
+            self.content.destroy()
+            del self.__dict__['content']
+
+        #import ipdb; ipdb.set_trace()
+        label = tk.Label(self, text='Content', borderwidth=1)
+        self.content = tk.Text(self, wrap=tk.WORD, height=35)
+        label.grid(row=self.size, column=0)
+        self.content.grid(row=self.size, column=1, sticky='e')
+        self.content.bind('<KeyRelease>', self.update_content)
+
+        if self.model.find('content') is None:
+            content = etree.SubElement(self.model, 'content')
+            content.text = ''
+        self.content.insert(1.0, self.model.find('content').text.strip())
+
+    def update_content(self, *args):
+
+        content_text = self.content.get(1.0, tk.END).strip()
+        self.model.find('content').text = content_text

@@ -8,7 +8,7 @@ element_to_view_map = {}
 # without deriving a specific type of view from it
 
 
-class ViewWithUpdate:
+class ViewWithUpdate(object):
 
     def update_model(self, child_tag, var, *args):
 
@@ -50,9 +50,9 @@ class ViewWithUpdate:
         value = str(var.get()).strip()
         if value == '':
             del self.model.attrib[attribute]
-        else:
-            self.model.attrib[attribute] = value
-        self.event_generate('<<ElemUpdate>>')
+        elif value is not None:
+            self.model.attrib[attribute] = unicode(value)
+            self.event_generate('<<ElemUpdate>>')
 
 
 class ViewBase(tk.Frame):
